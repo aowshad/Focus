@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#151517">
+<meta name="description" content="Focus — a beautiful, dependency-free Pomodoro timer with tasks, streaks and deep analytics.">
+<title>Focus</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='none' stroke='%2332d74b' stroke-width='10'/><circle cx='50' cy='50' r='14' fill='%2332d74b'/></svg>">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <nav class="sidebar" aria-label="Main">
+    <div class="brand"><span class="brand-dot"></span> Focus <span class="ver">v1.1</span></div>
+
+    <div class="side-label">Session</div>
+    <button class="side-item" data-nav="timer">
+      <span class="ico" data-ic="clock"></span> Timer <span class="pill" id="sideClock">25:00</span>
+    </button>
+
+    <div class="side-label">Tasks</div>
+    <button class="side-item" data-nav="tasks" data-filter="today"><span class="ico" data-ic="star"></span> Today <span class="count" data-count="today"></span></button>
+    <button class="side-item" data-nav="tasks" data-filter="upcoming"><span class="ico" data-ic="calendar"></span> Upcoming <span class="count" data-count="upcoming"></span></button>
+    <button class="side-item" data-nav="tasks" data-filter="all"><span class="ico" data-ic="inbox"></span> All <span class="count" data-count="all"></span></button>
+    <button class="side-item" data-nav="tasks" data-filter="completed"><span class="ico" data-ic="check-circle"></span> Completed</button>
+    <button class="side-item" data-nav="tasks" data-filter="deleted"><span class="ico" data-ic="trash"></span> Deleted</button>
+
+    <div class="side-label">Activity</div>
+    <button class="side-item" data-nav="activity"><span class="ico" data-ic="bar-chart"></span> Today</button>
+
+    <div class="side-spacer"></div>
+    <button class="side-item" data-nav="settings"><span class="ico" data-ic="sliders"></span> Settings</button>
+  </nav>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+
+    <!-- ---------- TIMER VIEW ---------- -->
+    <section class="view" id="view-timer">
+      <h1>Session <small id="phaseSub">Ready when you are</small></h1>
+      <div class="timer-wrap">
+        <div class="timer-col">
+          <div class="ring-box" id="ringBox">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#7cff9b"/>
+                  <stop offset="100%" stop-color="#32d74b"/>
+                </linearGradient>
+              </defs>
+              <circle class="ring-track" cx="50" cy="50" r="45" fill="none" stroke-width="4.5"/>
+              <circle class="ring-fill" id="ringFill" cx="50" cy="50" r="45" fill="none"
+                      stroke="url(#ringGrad)" stroke-width="4.5"
+                      stroke-dasharray="282.74" stroke-dashoffset="0"/>
+            </svg>
+            <div class="ring-center">
+              <div class="time-big" id="timeBig">25:00</div>
+              <div class="phase-label" id="phaseLabel">Next Up: Focus</div>
+            </div>
+          </div>
+          <div class="cycle-dots" id="cycleDots" title="Focus sessions until long break"></div>
+          <div class="t-controls">
+            <button class="ctl" id="btnPrev" title="Restart phase"><span data-ic="skip-back" data-sz="18"></span></button>
+            <button class="ctl main" id="btnPlay" title="Start / pause (Space)"></button>
+            <button class="ctl" id="btnSkip" title="Skip to next phase"><span data-ic="skip-fwd" data-sz="18"></span></button>
+          </div>
+          <div class="active-task-chip" id="taskChip" hidden>
+            <span data-ic="crosshair" data-sz="14" class="chip-ic"></span>
+            <span class="chip-lbl">Focusing on</span> <b id="taskChipName"></b>
+            <button id="taskChipClear" title="Detach task"><span data-ic="x" data-sz="13"></span></button>
+          </div>
+        </div>
+
+        <div class="timer-side">
+          <div class="card"><p class="quote" id="quoteText"></p></div>
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="bar-chart"></span> Activity summary <span class="spacer"></span><span class="link" id="todayName"></span></div>
+            <div class="mini-stats">
+              <div><div class="lbl">Focus</div><div class="val" id="msFocus">0<em> m</em></div></div>
+              <div><div class="lbl">Short break</div><div class="val" id="msShort">0<em> m</em></div></div>
+              <div><div class="lbl">Long break</div><div class="val" id="msLong">0<em> m</em></div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="clock"></span> Today's timeline</div>
+            <div id="miniTimeline"><div class="empty">Completed sessions will appear here.</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- TASKS VIEW ---------- -->
+    <section class="view" id="view-tasks">
+      <h1 id="tasksTitle">Today</h1>
+      <div class="task-add" id="taskAddRow">
+        <input type="text" id="newTaskTitle" placeholder="Add a task…" aria-label="Task title">
+        <input type="date" id="newTaskDue" aria-label="Due date">
+        <button class="btn" id="btnAddTask"><span data-ic="plus" data-sz="15"></span> Add</button>
+      </div>
+      <div id="taskList"></div>
+    </section>
+
+    <!-- ---------- ACTIVITY VIEW ---------- -->
+    <section class="view" id="view-activity">
+      <h1>Activity</h1>
+
+      <!-- Consistency: streaks + GitHub-style heatmap -->
+      <div class="card streak-card">
+        <div class="card-head"><span class="hd-ic flame" data-ic="flame"></span> Consistency</div>
+        <div class="streak-row" id="streakRow"></div>
+        <div class="heatmap-scroll"><div id="heatmap"></div></div>
+        <div class="heat-legend">Less <span class="hl l0"></span><span class="hl l1"></span><span class="hl l2"></span><span class="hl l3"></span><span class="hl l4"></span> More</div>
+      </div>
+
+      <div class="act-grid">
+        <div class="act-history" id="monthCards"></div>
+        <div class="act-detail">
+          <div class="date-strip">
+            <button class="nav" id="weekPrev" aria-label="Previous week"><span data-ic="chev-l" data-sz="16"></span></button>
+            <div class="days" id="dayPills"></div>
+            <button class="nav" id="weekNext" aria-label="Next week"><span data-ic="chev-r" data-sz="16"></span></button>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="star"></span> Daily goal</div>
+            <div class="goal-row">
+              <div class="goal-ring">
+                <svg width="150" height="150" viewBox="0 0 150 150">
+                  <circle cx="75" cy="75" r="66" fill="var(--green-soft)" opacity=".45"/>
+                  <circle cx="75" cy="75" r="66" fill="none" stroke="var(--green-dim)" stroke-width="7"/>
+                  <circle id="goalFill" cx="75" cy="75" r="66" fill="none" stroke="url(#ringGrad)" stroke-width="7"
+                          stroke-linecap="round" stroke-dasharray="414.7" stroke-dashoffset="414.7"/>
+                </svg>
+                <div class="goal-num" id="goalNum">0</div>
+              </div>
+              <div class="goal-side">
+                <div class="big" id="goalHead"></div>
+                <div class="sub" id="goalSub"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="zap"></span> Insights</div>
+            <p class="insight" id="insightText"></p>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="battery"></span> Summary</div>
+            <div class="sum-grid">
+              <div><div class="lbl">Focus sessions</div><div class="val"><span id="sumSessions">0</span><span class="trend" id="trSessions"></span></div></div>
+              <div><div class="lbl">Work time</div><div class="val"><span id="sumWork">0</span><em>h</em><span class="trend" id="trWork"></span></div></div>
+              <div><div class="lbl">Short breaks</div><div class="val" id="sumShort">0</div></div>
+              <div><div class="lbl">Long breaks</div><div class="val" id="sumLong">0</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="bar-chart"></span> Recent activity</div>
+            <div class="seg" id="rangeSeg">
+              <button data-range="week" class="on">This Week</button>
+              <button data-range="ten">Last 10 Days</button>
+              <button data-range="month">This Month</button>
+            </div>
+            <div class="chart-total" id="chartTotal"></div>
+            <div class="chart-range" id="chartRange"></div>
+            <div id="barChart"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="pie"></span> Task activity</div>
+            <div id="taskActivity"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><span class="hd-ic" data-ic="clock"></span> Timeline</div>
+            <div id="dayTimeline"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS VIEW ---------- -->
+    <section class="view" id="view-settings">
+      <h1>Settings</h1>
+      <div class="card">
+        <div class="card-head"><span class="hd-ic" data-ic="clock"></span> Timer</div>
+        <div class="set-row"><div class="lab"><b>Focus length</b><span>Minutes per focus session</span></div><input type="number" id="setFocus" min="1" max="180"></div>
+        <div class="set-row"><div class="lab"><b>Short break</b><span>Minutes</span></div><input type="number" id="setShort" min="1" max="60"></div>
+        <div class="set-row"><div class="lab"><b>Long break</b><span>Minutes</span></div><input type="number" id="setLong" min="1" max="120"></div>
+        <div class="set-row"><div class="lab"><b>Sessions before long break</b><span>Focus sessions per cycle</span></div><input type="number" id="setCycle" min="1" max="12"></div>
+        <div class="set-row"><div class="lab"><b>Auto-start next phase</b><span>Breaks and focus start on their own</span></div><button class="switch" id="setAuto" role="switch"><i></i></button></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="hd-ic" data-ic="star"></span> Goals &amp; alerts</div>
+        <div class="set-row"><div class="lab"><b>Daily goal</b><span>Focus sessions per day — also scales the heatmap</span></div><input type="number" id="setGoal" min="1" max="30"></div>
+        <div class="set-row"><div class="lab"><b>Sound</b><span>Chime when a phase ends</span></div><button class="switch" id="setSound" role="switch"><i></i></button></div>
+        <div class="set-row"><div class="lab"><b>Notifications</b><span>System notification when a phase ends</span></div><button class="switch" id="setNotify" role="switch"><i></i></button></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="hd-ic" data-ic="database"></span> Data</div>
+        <div class="set-row"><div class="lab"><b>Load sample history</b><span>Fills six months of demo sessions to preview the analytics</span></div><button class="btn ghost" id="btnSeed">Load</button></div>
+        <div class="set-row"><div class="lab"><b>Erase all data</b><span>Removes every task, session and setting</span></div><button class="btn danger" id="btnWipe">Erase</button></div>
+      </div>
+      <p class="foot-note">Focus is open source — data never leaves your browser.</p>
+    </section>
+  </main>
+</div>
+
+<!-- ===================== MOBILE TAB BAR ===================== -->
+<nav class="tabbar" aria-label="Main">
+  <button data-nav="timer" class="active"><span class="ico" data-ic="clock" data-sz="20"></span>Timer</button>
+  <button data-nav="tasks" data-filter="today"><span class="ico" data-ic="star" data-sz="20"></span>Tasks</button>
+  <button data-nav="activity"><span class="ico" data-ic="bar-chart" data-sz="20"></span>Activity</button>
+  <button data-nav="settings"><span class="ico" data-ic="sliders" data-sz="20"></span>Settings</button>
+</nav>
+
+<script src="js/app.js"></script>
+</body>
+</html>
