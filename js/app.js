@@ -538,12 +538,25 @@ const ui = {
       });
     } catch (e) {}
   },
-  notifyPermission() { if (settings.notify && "Notification" in window && Notification.permission === "default") Notification.requestPermission(); },
+  /* Native notifications when running inside Tauri (macOS app), web API otherwise */
+  _tauriNotif() { return window.__TAURI__ && window.__TAURI__.notification; },
+  notifyPermission() {
+    if (!settings.notify) return;
+    const tn = this._tauriNotif();
+    if (tn) { tn.isPermissionGranted().then(g => { if (!g) tn.requestPermission(); }).catch(() => {}); return; }
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  },
   notify(nextPhase) {
-    if (!settings.notify || !("Notification" in window) || Notification.permission !== "granted") return;
+    if (!settings.notify) return;
     const msg = nextPhase === "focus"
       ? "Break's over — ready for the next focus session."
       : (nextPhase === "long" ? "Great cycle. Take a long break." : "Focus session complete. Take a short break.");
+    const tn = this._tauriNotif();
+    if (tn) {
+      tn.isPermissionGranted().then(g => { if (g) tn.sendNotification({ title: "Focus", body: msg }); }).catch(() => {});
+      return;
+    }
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
     try { new Notification("Focus", { body: msg }); } catch (e) {}
   },
 
