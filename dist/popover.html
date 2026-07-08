@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus</title>
+<style>
+  :root{
+    --green:#32d74b; --green-hi:#7cff9b; --track:rgba(255,255,255,.12);
+    --text:#f7f7f9; --muted:#a6a6ad; --faint:#78787f; --amber:#ff9f0a;
+    --card:rgba(255,255,255,.055); --line:rgba(255,255,255,.09);
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none}
+  /* Everything transparent EXCEPT the panel — so the window's backing never shows */
+  html,body{height:100%;width:100%;background:transparent !important;overflow:hidden}
+  body{font-family:var(--sans);color:var(--text);letter-spacing:-.01em}
+  button{font-family:inherit;background:none;border:none;color:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
+
+  .panel{
+    position:fixed;inset:0;                       /* fill the window completely — no gutter, no rounding */
+    background:#1c1c20;
+    display:flex;flex-direction:column;
+    padding:18px 17px 15px;gap:13px;
+    overflow:hidden;
+  }
+
+  /* header */
+  .hdr{display:flex;align-items:center;justify-content:space-between;flex:none}
+  .hdr .date{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .phase{font-size:12px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:6px}
+  .phase .d{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor}
+  .phase.brk{color:var(--amber)} .phase.idle{color:var(--faint)} .phase.idle .d{box-shadow:none}
+
+  /* ring + time */
+  .ring-wrap{position:relative;width:160px;height:160px;margin:0 auto;flex:none}
+  .ring-wrap svg{transform:rotate(-90deg)}
+  .ring-track{stroke:var(--track)}
+  .ring-fill{stroke:var(--green);stroke-linecap:round;transition:stroke-dashoffset .4s linear,stroke .3s}
+  .ring-fill.brk{stroke:var(--amber)}
+  .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .ring-center .t{font-size:42px;font-weight:300;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.01em}
+  .ring-center .nx{font-size:11px;color:var(--muted);font-weight:500}
+
+  /* controls */
+  .ctrls{display:flex;align-items:center;justify-content:center;gap:18px;flex:none}
+  .cbtn{width:44px;height:44px;border-radius:50%;
+    background:linear-gradient(180deg,#323238,#2a2a2f);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;color:var(--muted);
+    box-shadow:0 4px 10px rgba(0,0,0,.25),0 1px 0 rgba(255,255,255,.06) inset;
+    transition:transform .12s,color .12s}
+  .cbtn:hover{color:var(--text);transform:translateY(-1px)}
+  .cbtn:active{transform:scale(.94)}
+  .cbtn.main{width:58px;height:58px;color:#04180a;border:none;
+    background:radial-gradient(circle at 32% 28%,#5cf078,var(--green) 62%,#25b83c);
+    box-shadow:0 8px 20px rgba(50,215,75,.4),0 1px 0 rgba(255,255,255,.35) inset}
+  .cbtn.main:hover{transform:scale(1.05)} .cbtn.main:active{transform:scale(.95)}
+
+  /* stats — three clear tiles */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:none}
+  .stat{text-align:center;background:var(--card);border:.5px solid var(--line);border-radius:10px;padding:9px 4px}
+  .stat .n{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .stat .n.flame{color:var(--amber)}
+  .stat .l{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;font-weight:600}
+
+  /* goal */
+  .goal{flex:none}
+  .goal .row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:6px}
+  .goal .row b{color:var(--text);font-variant-numeric:tabular-nums}
+  .goal .bar{height:6px;border-radius:99px;background:var(--track);overflow:hidden}
+  .goal .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green-hi),var(--green));transition:width .4s}
+
+  /* footer — pinned bottom */
+  .foot{display:flex;align-items:center;justify-content:space-between;border-top:.5px solid var(--line);padding-top:13px;margin-top:auto;flex:none}
+  .foot button{background:none;border:none;box-shadow:none;font-size:12.5px;font-weight:500;color:var(--muted);padding:2px 4px;transition:color .12s}
+  .foot button:hover{color:var(--text);background:none}
+  .foot button.primary{color:var(--green);font-weight:600}
+  .foot button.primary:hover{color:var(--green-hi)}
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="hdr">
+      <span class="date" id="pDate"></span>
+      <span class="phase idle" id="pPhase"><span class="d"></span><span id="pPhaseTxt">Idle</span></span>
+    </div>
+
+    <div class="ring-wrap">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle class="ring-track" cx="80" cy="80" r="73" fill="none" stroke-width="5"/>
+        <circle class="ring-fill" id="pRing" cx="80" cy="80" r="73" fill="none" stroke-width="5"
+                stroke-dasharray="458.7" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-center">
+        <div class="t" id="pTime">25:00</div>
+        <div class="nx" id="pNext">Next up: Focus</div>
+      </div>
+    </div>
+
+    <div class="ctrls">
+      <button class="cbtn" id="pPrev" title="Restart phase" aria-label="Restart"></button>
+      <button class="cbtn main" id="pPlay" title="Start / pause" aria-label="Start or pause"></button>
+      <button class="cbtn" id="pSkip" title="Skip" aria-label="Skip"></button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n" id="pSessions">0</div><div class="l">Today</div></div>
+      <div class="stat"><div class="n" id="pWork">0m</div><div class="l">Focused</div></div>
+      <div class="stat"><div class="n flame" id="pStreak">0</div><div class="l">Streak</div></div>
+    </div>
+
+    <div class="goal">
+      <div class="row"><span>Daily goal</span><span><b id="pGoalNum">0</b> / <span id="pGoalTgt">8</span></span></div>
+      <div class="bar"><div class="fill" id="pGoalFill" style="width:0%"></div></div>
+    </div>
+
+    <div class="foot">
+      <button id="pOpen" class="primary">Open Focus</button>
+      <button id="pQuit">Quit</button>
+    </div>
+  </div>
+
+<script>
+"use strict";
+const T = window.__TAURI__ || {};
+const invoke = T.core && T.core.invoke;
+const listen = T.event && T.event.listen;
+
+const $ = s => document.querySelector(s);
+const DAY = 86400000;
+const sod = d => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } };
+
+const ic = (p) => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICO = {
+  play:'<polygon points="6 3.5 21 12 6 20.5" fill="currentColor" stroke="none"/>',
+  pause:'<rect x="5" y="4" width="4.5" height="16" rx="1.5" fill="currentColor" stroke="none"/><rect x="14.5" y="4" width="4.5" height="16" rx="1.5" fill="currentColor" stroke="none"/>',
+  skip:'<polygon points="5 4 15 12 5 20" fill="currentColor" stroke="none"/><line x1="19" y1="5" x2="19" y2="19" stroke-width="2.5"/>',
+  prev:'<polygon points="19 4 9 12 19 20" fill="currentColor" stroke="none"/><line x1="5" y1="5" x2="5" y2="19" stroke-width="2.5"/>'
+};
+$("#pPrev").innerHTML = ic(ICO.prev);
+$("#pSkip").innerHTML = ic(ICO.skip);
+
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const RING_C = 458.7;
+let optimisticRunning = null;
+
+function render(){
+  const settings = Object.assign({ focus:25, short:5, long:15, cycle:4, goal:8 }, get("fx.settings", {}));
+  const sessions = get("fx.sessions", []);
+  const rt = get("fx.runtime", null);
+
+  const now = new Date();
+  $("#pDate").textContent = `${DOW[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
+
+  let phase="focus", running=false, remainMs=settings.focus*60000;
+  if (rt){ phase=rt.phase; running=rt.running; remainMs = running ? Math.max(0, rt.remainMs-(Date.now()-rt.ts)) : rt.remainMs; }
+  const dur = ({focus:settings.focus, short:settings.short, long:settings.long}[phase] || settings.focus)*60000;
+  const names={focus:"Focus",short:"Short Break",long:"Long Break"};
+  const mm=String(Math.floor(remainMs/60000)).padStart(2,"0"), ss=String(Math.floor(remainMs/1000)%60).padStart(2,"0");
+  $("#pTime").textContent = `${mm}:${ss}`;
+  $("#pNext").textContent = running ? names[phase]+" in progress" : "Next up: "+names[phase];
+  const isBrk = phase!=="focus";
+  $("#pPhase").className = "phase " + (!running ? "idle" : (isBrk?"brk":""));
+  $("#pPhaseTxt").textContent = running ? names[phase] : "Idle";
+  const showRunning = optimisticRunning !== null ? optimisticRunning : running;
+  $("#pPlay").innerHTML = ic(showRunning ? ICO.pause : ICO.play);
+  const ring = $("#pRing");
+  ring.classList.toggle("brk", isBrk && running);
+  ring.style.strokeDashoffset = RING_C * (1 - remainMs/dur);
+
+  const s0=sod(now).getTime(), s1=s0+DAY;
+  const fToday = sessions.filter(s=>s.kind==="focus" && s.start>=s0 && s.start<s1);
+  const mins = Math.round(fToday.reduce((a,s)=>a+(s.end-s.start),0)/60000);
+  $("#pSessions").textContent = fToday.length;
+  $("#pWork").textContent = mins>=60 ? `${Math.floor(mins/60)}h${mins%60}m` : `${mins}m`;
+
+  const days = new Set(sessions.filter(s=>s.kind==="focus").map(s=>sod(new Date(s.start)).getTime()));
+  let streak=0, t=sod(now).getTime(); if(!days.has(t)) t-=DAY;
+  while(days.has(t)){ streak++; t-=DAY; }
+  $("#pStreak").textContent = streak;
+
+  const pct = Math.min(1, fToday.length/settings.goal);
+  $("#pGoalNum").textContent = fToday.length;
+  $("#pGoalTgt").textContent = settings.goal;
+  $("#pGoalFill").style.width = (pct*100)+"%";
+}
+
+const act = (action)=>{
+  if (action === "toggle"){
+    const rt = get("fx.runtime", null);
+    optimisticRunning = !(rt ? rt.running : false);
+    $("#pPlay").innerHTML = ic(optimisticRunning ? ICO.pause : ICO.play);
+  }
+  if (invoke) invoke("popover_action", { action }).catch(()=>{});
+  setTimeout(()=>{ optimisticRunning = null; render(); }, 130);
+};
+$("#pPlay").onclick = ()=>act("toggle");
+$("#pSkip").onclick = ()=>act("skip");
+$("#pPrev").onclick = ()=>act("restart");
+$("#pOpen").onclick = ()=>{ act("open"); if(invoke) invoke("hide_popover").catch(()=>{}); };
+$("#pQuit").onclick = ()=>act("quit");
+
+let iv=null;
+function startTick(){ render(); clearInterval(iv); iv=setInterval(render,1000); }
+if (listen){ listen("popover-shown", startTick); listen("fx-updated", render); }
+startTick();
+</script>
+</body>
+</html>

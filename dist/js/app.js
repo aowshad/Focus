@@ -229,12 +229,31 @@ const ui = {
   },
 
   /* ----- timer ----- */
+  /* Push the current time/phase to the native macOS menu bar (Tauri only; no-op in browser) */
+  _tauriInvoke() { return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke; },
+  syncMenubar() {
+    const invoke = this._tauriInvoke();
+    if (!invoke) return; // running in a browser — nothing to do
+    let label = "";
+    if (engine.running) {
+      const rem = engine.remainMs;
+      label = `${String(Math.floor(rem / 60000)).padStart(2, "0")}:${String(Math.floor(rem / 1000) % 60).padStart(2, "0")}`;
+    }
+    try { invoke("set_menubar", { label }); } catch (e) {}
+    // Publish runtime state so the menu bar popover can mirror it, then ping it.
+    try {
+      store.set("fx.runtime", { phase: engine.phase, running: engine.running, remainMs: engine.remainMs, ts: Date.now() });
+      if (window.__TAURI__ && window.__TAURI__.event) window.__TAURI__.event.emit("fx-updated", {});
+    } catch (e) {}
+  },
+
   renderTimer(light) {
     const total = engine.durMs(engine.phase), rem = engine.remainMs;
     const mm = String(Math.floor(rem / 60000)).padStart(2, "0"), ss = String(Math.floor(rem / 1000) % 60).padStart(2, "0");
     $("#timeBig").textContent = `${mm}:${ss}`;
     $("#sideClock").textContent = `${mm}:${ss}`;
     document.title = engine.running ? `${mm}:${ss} · Focus` : "Focus";
+    this.syncMenubar();
     const C = 282.74;
     $("#ringFill").style.strokeDashoffset = C * (1 - rem / total);
     $("#ringBox").classList.toggle("running", engine.running);
@@ -687,6 +706,38 @@ $("#btnWipe").onclick = () => {
    BOOT
    ===================================================================== */
 hydrateIcons();
+
+/* Wrap Settings number inputs in Apple-style -/+ steppers */
+["#setFocus","#setShort","#setLong","#setCycle","#setGoal"].forEach(sel => {
+  const input = $(sel); if (!input || input.closest(".stepper")) return;
+  const wrap = document.createElement("div"); wrap.className = "stepper";
+  const minus = document.createElement("button"); minus.type = "button"; minus.textContent = "−"; minus.setAttribute("aria-label", "Decrease");
+  const plus = document.createElement("button"); plus.type = "button"; plus.textContent = "+"; plus.setAttribute("aria-label", "Increase");
+  input.parentNode.insertBefore(wrap, input);
+  wrap.append(minus, input, plus);
+  const bump = dir => {
+    const min = +input.min || 1, max = +input.max || 999;
+    input.value = Math.min(max, Math.max(min, (+input.value || min) + dir));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  minus.onclick = () => bump(-1);
+  plus.onclick = () => bump(1);
+});
+
+/* Native menu bar bridge (Tauri only) */
+if (window.__TAURI__ && window.__TAURI__.event) {
+  const ev = window.__TAURI__.event;
+  const control = (a) => {
+    if (a === "toggle") engine.running ? engine.pause() : engine.start();
+    else if (a === "skip") engine.skip();
+    else if (a === "restart") engine.restartPhase();
+  };
+  // tray right-click "Start / Pause"
+  ev.listen("tray-toggle", () => control("toggle"));
+  // popover mini-controls, relayed via the Rust command
+  ev.listen("engine-control", (e) => control(e && e.payload));
+}
+
 const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
 $("#quoteText").innerHTML = `&ldquo;${q[0]}&rdquo;<span class="who">— ${q[1]}</span>`;
 engine.init();
